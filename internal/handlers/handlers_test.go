@@ -226,3 +226,40 @@ func TestHandleControlStatus(t *testing.T) {
 		t.Errorf("Status port = %d, want 7788", status.Port)
 	}
 }
+
+func TestHandleControlAppExit(t *testing.T) {
+	srv, _, authMgr, tempDir := setupTestServer(t)
+	defer os.RemoveAll(tempDir)
+
+	exitCalled := false
+	shutdownPCCalled := false
+	srv.SetOnExit(func(shutdownPC bool) {
+		exitCalled = true
+		shutdownPCCalled = shutdownPC
+	})
+
+	handler := RequireAuth(authMgr, srv.HandleControlAppExit)
+	token := authMgr.CreateSessionToken()
+
+	form := url.Values{}
+	form.Set("shutdown_pc", "true")
+
+	req := httptest.NewRequest(http.MethodPost, "/control/app/exit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("POST /control/app/exit returned %d, want %d", rr.Code, http.StatusOK)
+	}
+
+	time.Sleep(600 * time.Millisecond)
+	if !exitCalled {
+		t.Errorf("onExit callback was not triggered")
+	}
+	if !shutdownPCCalled {
+		t.Errorf("shutdownPC flag was not passed as true")
+	}
+}
+

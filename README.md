@@ -116,8 +116,13 @@ Launch the executable with custom flags or default settings:
   - 🎮 **Open Control Panel**: Opens `http://localhost:8080/control` in your browser.
   - 📁 **Open Storage Folder**: Opens `C:\Users\sk\Videos\Vidoveo` in Windows File Explorer.
   - ──────────
-  - 🚪 **Exit Vido Tunnel**: Gracefully terminates the server and removes the tray icon.
+  - ▶️ **Start Vidoveo**: Starts `Vidoveo.exe` in background minimized.
+  - ⏹️ **Stop Vidoveo**: Cleanly stops `Vidoveo.exe`.
+  - 🔄 **Restart Cloudflare Tunnel**: Re-establishes a fresh tunnel connection.
+  - ──────────
+  - 🚪 **Exit Vido Tunnel**: Gracefully terminates Vido Tunnel, closes `Vidoveo.exe`, and terminates the Cloudflare tunnel.
 - **Left Double-Click**: Double-clicking the tray icon immediately opens the web dashboard.
+- **Control Panel Power Management**: Supports closing the application remotely with an optional **"Shutdown PC on Exit"** switch.
 
 ---
 

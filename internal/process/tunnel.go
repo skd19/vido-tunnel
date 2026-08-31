@@ -47,6 +47,7 @@ func (tm *TunnelManager) FindCloudflared() string {
 		if _, err := os.Stat(tm.customPath); err == nil {
 			return tm.customPath
 		}
+		return ""
 	}
 
 	// Look in system PATH
@@ -176,6 +177,10 @@ func (tm *TunnelManager) Stop() error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
+	return tm.stopInternal()
+}
+
+func (tm *TunnelManager) stopInternal() error {
 	// Find all matching tunnel processes and kill them
 	psScript := fmt.Sprintf(`Get-CimInstance Win32_Process -Filter "Name = 'cloudflared.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*tunnel run %s*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`, tm.tunnelName)
 
@@ -196,4 +201,54 @@ func (tm *TunnelManager) Stop() error {
 	}
 
 	return nil
+}
+
+// Restart stops the existing tunnel if running, waits, and starts it again fresh
+func (tm *TunnelManager) Restart() error {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	binary := tm.FindCloudflared()
+	if binary == "" {
+		return errors.New("cloudflared is not installed or not found in system PATH")
+	}
+
+	// If running, stop first
+	if running, _ := tm.FindRunningTunnel(); running {
+		_ = tm.stopInternal()
+		time.Sleep(1 * time.Second)
+	}
+
+	cmd := exec.Command(binary, "tunnel", "run", tm.tunnelName)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start cloudflared tunnel: %w", err)
+	}
+
+	tm.lastPID = cmd.Process.Pid
+
+	time.Sleep(1 * time.Second)
+	if isRun, newPid := tm.FindRunningTunnel(); isRun {
+		tm.lastPID = newPid
+	}
+
+	return nil
+}
+
+// EnsureRunningOrRestart checks tunnel state: if running, it restarts it; if stopped, it starts it
+func (tm *TunnelManager) EnsureRunningOrRestart() error {
+	binary := tm.FindCloudflared()
+	if binary == "" {
+		return errors.New("cloudflared is not installed or not found in system PATH")
+	}
+
+	running, _ := tm.FindRunningTunnel()
+	if running {
+		return tm.Restart()
+	}
+	return tm.Start()
 }

@@ -58,7 +58,10 @@ const (
 	ID_OPEN_DASHBOARD = 1001
 	ID_OPEN_CONTROL   = 1002
 	ID_OPEN_FOLDER    = 1003
-	ID_EXIT           = 1004
+	ID_VIDOVEO_START  = 1004
+	ID_VIDOVEO_STOP   = 1005
+	ID_TUNNEL_RESTART = 1006
+	ID_EXIT           = 1007
 )
 
 type POINT struct {
@@ -109,11 +112,14 @@ type MSG struct {
 
 // Config for Tray actions
 type Config struct {
-	Title              string
-	DashboardURL       string
-	ControlURL         string
-	StoragePath        string
-	OnExit             func()
+	Title           string
+	DashboardURL    string
+	ControlURL      string
+	StoragePath     string
+	OnStartVidoveo  func()
+	OnStopVidoveo   func()
+	OnRestartTunnel func()
+	OnExit          func()
 }
 
 type App struct {
@@ -251,6 +257,18 @@ func wndProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 			OpenURL(currentApp.cfg.ControlURL)
 		case ID_OPEN_FOLDER:
 			OpenFolder(currentApp.cfg.StoragePath)
+		case ID_VIDOVEO_START:
+			if currentApp.cfg.OnStartVidoveo != nil {
+				go currentApp.cfg.OnStartVidoveo()
+			}
+		case ID_VIDOVEO_STOP:
+			if currentApp.cfg.OnStopVidoveo != nil {
+				go currentApp.cfg.OnStopVidoveo()
+			}
+		case ID_TUNNEL_RESTART:
+			if currentApp.cfg.OnRestartTunnel != nil {
+				go currentApp.cfg.OnRestartTunnel()
+			}
 		case ID_EXIT:
 			if currentApp.cfg.OnExit != nil {
 				go currentApp.cfg.OnExit()
@@ -277,11 +295,18 @@ func (a *App) showContextMenu() {
 	dashStr, _ := syscall.UTF16PtrFromString("Open Dashboard")
 	ctrlStr, _ := syscall.UTF16PtrFromString("Open Control Panel")
 	folderStr, _ := syscall.UTF16PtrFromString("Open Storage Folder")
+	startVidStr, _ := syscall.UTF16PtrFromString("Start Vidoveo")
+	stopVidStr, _ := syscall.UTF16PtrFromString("Stop Vidoveo")
+	restartTunStr, _ := syscall.UTF16PtrFromString("Restart Cloudflare Tunnel")
 	exitStr, _ := syscall.UTF16PtrFromString("Exit Vido Tunnel")
 
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_DASHBOARD), uintptr(unsafe.Pointer(dashStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_CONTROL), uintptr(unsafe.Pointer(ctrlStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_FOLDER), uintptr(unsafe.Pointer(folderStr)))
+	procAppendMenuW.Call(hMenu, uintptr(MF_SEPARATOR), 0, 0)
+	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_VIDOVEO_START), uintptr(unsafe.Pointer(startVidStr)))
+	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_VIDOVEO_STOP), uintptr(unsafe.Pointer(stopVidStr)))
+	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_TUNNEL_RESTART), uintptr(unsafe.Pointer(restartTunStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_SEPARATOR), 0, 0)
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_EXIT), uintptr(unsafe.Pointer(exitStr)))
 

@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,21 +34,16 @@ func main() {
 	procMgr := process.NewManager(cfg.VidoveoPath, cfg.VidoveoPort)
 	tunnelMgr := process.NewTunnelManager(cfg.TunnelName, cfg.CloudflaredPath)
 
-	// Auto-start tunnel if configured (matching start-tunnel.ps1 behavior)
-	if cfg.AutoStartTunnel {
-		go func() {
-			time.Sleep(1 * time.Second)
-			status := tunnelMgr.GetStatus()
-			if status.Installed && !status.Running {
-				log.Printf("[TUNNEL] Auto-starting Cloudflare tunnel '%s'...", cfg.TunnelName)
-				if err := tunnelMgr.Start(); err != nil {
-					log.Printf("[TUNNEL] Auto-start failed: %v", err)
-				} else {
-					log.Printf("[TUNNEL] Cloudflare tunnel '%s' auto-started successfully.", cfg.TunnelName)
-				}
-			}
-		}()
-	}
+	// Auto-check and restart Cloudflare tunnel on startup
+	go func() {
+		time.Sleep(1 * time.Second)
+		log.Printf("[TUNNEL] Auto-checking Cloudflare tunnel '%s' on startup...", cfg.TunnelName)
+		if err := tunnelMgr.EnsureRunningOrRestart(); err != nil {
+			log.Printf("[TUNNEL] Startup tunnel status: %v", err)
+		} else {
+			log.Printf("[TUNNEL] Cloudflare tunnel '%s' active and running.", cfg.TunnelName)
+		}
+	}()
 
 	srv, err := handlers.NewServer(cfg, authMgr, rateLimiter, procMgr, tunnelMgr)
 	if err != nil {
@@ -78,6 +75,8 @@ func main() {
 	mux.HandleFunc("/control/stop", handlers.RequireAuth(authMgr, srv.HandleControlStop))
 	mux.HandleFunc("/control/tunnel/start", handlers.RequireAuth(authMgr, srv.HandleControlTunnelStart))
 	mux.HandleFunc("/control/tunnel/stop", handlers.RequireAuth(authMgr, srv.HandleControlTunnelStop))
+	mux.HandleFunc("/control/tunnel/restart", handlers.RequireAuth(authMgr, srv.HandleControlTunnelRestart))
+	mux.HandleFunc("/control/app/exit", handlers.RequireAuth(authMgr, srv.HandleControlAppExit))
 
 	// Apply middleware stack
 	handler := handlers.SecurityHeadersMiddleware(handlers.LoggingMiddleware(mux))
@@ -103,18 +102,70 @@ func main() {
 	fmt.Println("==========================================================")
 	fmt.Println(" Ready for connections. Press Ctrl+C to shut down.")
 
-	// Initialize System Tray App
+	// Centralized Teardown Handler
+	var teardownOnce sync.Once
 	var trayApp *tray.App
+
+	teardown := func(shutdownPC bool) {
+		teardownOnce.Do(func() {
+			log.Println("[TEARDOWN] Starting complete process cleanup...")
+
+			// 1. Terminate Vidoveo.exe if running
+			if isRun, _ := procMgr.FindRunningProcess(); isRun {
+				log.Println("[TEARDOWN] Stopping Vidoveo application...")
+				_ = procMgr.Stop()
+			}
+
+			// 2. Stop Cloudflare tunnel
+			log.Println("[TEARDOWN] Stopping Cloudflare tunnel...")
+			_ = tunnelMgr.Stop()
+
+			// 3. Stop HTTP server
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = httpServer.Shutdown(ctx)
+
+			// 4. Remove System Tray Icon and exit loop
+			if trayApp != nil {
+				trayApp.Stop()
+			}
+
+			// 5. If PC shutdown requested, run shutdown.exe
+			if shutdownPC {
+				log.Println("[POWER] Initiating computer shutdown in 10 seconds...")
+				cmd := exec.Command("shutdown.exe", "/s", "/t", "10", "/c", "Vido Tunnel closed - System shutdown initiated")
+				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+				_ = cmd.Run()
+			}
+		})
+	}
+
+	// Connect HTTP Control Panel Exit to teardown
+	srv.SetOnExit(func(shutdownPC bool) {
+		teardown(shutdownPC)
+	})
+
+	// Initialize System Tray App
 	trayConfig := tray.Config{
 		Title:        fmt.Sprintf("Vido Tunnel (Port %s)", cfg.Port),
 		DashboardURL: fmt.Sprintf("http://localhost:%s", cfg.Port),
 		ControlURL:   fmt.Sprintf("http://localhost:%s/control", cfg.Port),
 		StoragePath:  cfg.RootDir,
+		OnStartVidoveo: func() {
+			log.Println("[TRAY] Starting Vidoveo from tray menu...")
+			_ = procMgr.Start()
+		},
+		OnStopVidoveo: func() {
+			log.Println("[TRAY] Stopping Vidoveo from tray menu...")
+			_ = procMgr.Stop()
+		},
+		OnRestartTunnel: func() {
+			log.Println("[TRAY] Restarting Cloudflare tunnel from tray menu...")
+			_ = tunnelMgr.Restart()
+		},
 		OnExit: func() {
 			log.Println("[TRAY] Exit requested via system tray context menu.")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = httpServer.Shutdown(ctx)
+			teardown(false)
 		},
 	}
 	trayApp = tray.New(trayConfig)
@@ -126,16 +177,13 @@ func main() {
 	go func() {
 		<-stopChan
 		log.Println("[SERVER] Interrupt signal received, shutting down...")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = httpServer.Shutdown(ctx)
-		trayApp.Stop()
+		teardown(false)
 	}()
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("[SERVER] Server error: %v", err)
-			trayApp.Stop()
+			teardown(false)
 		}
 	}()
 

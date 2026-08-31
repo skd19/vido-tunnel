@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/skd19/vido-tunnel/internal/auth"
 	"github.com/skd19/vido-tunnel/internal/config"
@@ -24,6 +25,7 @@ type Server struct {
 	procMgr     *process.Manager
 	tunnelMgr   *process.TunnelManager
 	pages       map[string]*template.Template
+	onExit      func(shutdownPC bool)
 }
 
 func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.RateLimiter, procMgr *process.Manager, tunnelMgr *process.TunnelManager) (*Server, error) {
@@ -51,6 +53,11 @@ func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.Rate
 		tunnelMgr:   tunnelMgr,
 		pages:       pages,
 	}, nil
+}
+
+// SetOnExit sets the callback invoked when exit is requested via HTTP Control Panel
+func (s *Server) SetOnExit(fn func(shutdownPC bool)) {
+	s.onExit = fn
 }
 
 // HandleLogin renders and processes the secret key authentication form
@@ -350,6 +357,54 @@ func (s *Server) HandleControlTunnelStop(w http.ResponseWriter, r *http.Request)
 		"success": true,
 		"message": fmt.Sprintf("Cloudflare tunnel '%s' stopped successfully", s.cfg.TunnelName),
 	})
+}
+
+// HandleControlTunnelRestart stops and starts the Cloudflare tunnel fresh
+func (s *Server) HandleControlTunnelRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err := s.tunnelMgr.Restart()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Cloudflare tunnel '%s' restarted successfully", s.cfg.TunnelName),
+	})
+}
+
+// HandleControlAppExit closes Vido Tunnel, terminates child processes, and optionally shuts down the PC
+func (s *Server) HandleControlAppExit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	shutdownPC := r.FormValue("shutdown_pc") == "true" || r.FormValue("shutdown_pc") == "1"
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":     true,
+		"message":     "Server shutdown initiated. Closing application...",
+		"shutdown_pc": shutdownPC,
+	})
+
+	if s.onExit != nil {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			s.onExit(shutdownPC)
+		}()
+	}
 }
 
 func (s *Server) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
