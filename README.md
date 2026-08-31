@@ -21,7 +21,7 @@ The entire application—including HTML templates, Bootstrap 5.3 CSS/JS, and Boo
 - **Zero File Upload Policy**: Strictly read-only on files. No upload handlers exist in the codebase.
 
 ### 🎮 2. Application & Port Control Panel
-- **`Vidoveo.exe` Supervisor**: Checks if `C:\Vidoveo\Vidoveo.exe` is running, shows its Process ID (PID), and allows authorized users to start or stop the application remotely.
+- **`Vidoveo.exe` Supervisor**: Checks if `C:\Vidoveo\Vidoveo.exe` is running, shows its Process ID (PID), and allows authorized users to start or stop the application remotely. When started, it opens in the **background minimized** so it does not interrupt active windows or pop up on top.
 - **Port 7788 Health Monitor**: Probes local TCP socket `127.0.0.1:7788` with live status feedback.
 - **Live Auto-Polling**: Real-time status updates every 3 seconds with animated status indicators.
 
