@@ -42,7 +42,9 @@ var (
 const (
 	WM_USER         = 0x0400
 	WM_TRAYICON     = WM_USER + 1
+	WM_USER_QUIT    = WM_USER + 2
 	WM_DESTROY      = 0x0002
+	WM_CLOSE        = 0x0010
 	WM_COMMAND      = 0x0111
 	WM_LBUTTONDBLCLK= 0x0203
 	WM_RBUTTONUP    = 0x0205
@@ -243,7 +245,7 @@ func (a *App) Run() error {
 func (a *App) Stop() {
 	if a.hwnd != 0 {
 		procShellNotifyIconW.Call(uintptr(NIM_DELETE), uintptr(unsafe.Pointer(&a.nid)))
-		procPostQuitMessage.Call(0)
+		procPostMessageW.Call(uintptr(a.hwnd), uintptr(WM_USER_QUIT), 0, 0)
 	}
 }
 
@@ -292,6 +294,10 @@ func wndProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 			}
 			currentApp.Stop()
 		}
+		return 0
+
+	case WM_USER_QUIT, WM_CLOSE:
+		procDestroyWindow.Call(uintptr(hwnd))
 		return 0
 
 	case WM_DESTROY:

@@ -139,6 +139,12 @@ func main() {
 				cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 				_ = cmd.Run()
 			}
+
+			log.Println("[SERVER] Vido Tunnel stopped cleanly.")
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				os.Exit(0)
+			}()
 		})
 	}
 
@@ -196,4 +202,5 @@ func main() {
 	}
 
 	log.Println("[SERVER] Vido Tunnel stopped cleanly.")
+	os.Exit(0)
 }
