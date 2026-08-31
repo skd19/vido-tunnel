@@ -130,8 +130,16 @@ function startAutoPolling() {
     const autoPollCheck = document.getElementById('autoPollCheck');
     if (pollIntervalId) clearInterval(pollIntervalId);
 
+    if (autoPollCheck) {
+        autoPollCheck.addEventListener('change', () => {
+            if (autoPollCheck.checked) {
+                fetchControlStatus();
+            }
+        });
+    }
+
     pollIntervalId = setInterval(() => {
-        if (!autoPollCheck || autoPollCheck.checked) {
+        if (autoPollCheck && autoPollCheck.checked) {
             fetchControlStatus();
         }
     }, 3000);

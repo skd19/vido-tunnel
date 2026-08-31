@@ -15,6 +15,7 @@ import (
 	"github.com/skd19/vido-tunnel/internal/config"
 	"github.com/skd19/vido-tunnel/internal/handlers"
 	"github.com/skd19/vido-tunnel/internal/process"
+	"github.com/skd19/vido-tunnel/internal/tray"
 	"github.com/skd19/vido-tunnel/web"
 )
 
@@ -102,25 +103,46 @@ func main() {
 	fmt.Println("==========================================================")
 	fmt.Println(" Ready for connections. Press Ctrl+C to shut down.")
 
-	// Graceful shutdown channel
+	// Initialize System Tray App
+	var trayApp *tray.App
+	trayConfig := tray.Config{
+		Title:        fmt.Sprintf("Vido Tunnel (Port %s)", cfg.Port),
+		DashboardURL: fmt.Sprintf("http://localhost:%s", cfg.Port),
+		ControlURL:   fmt.Sprintf("http://localhost:%s/control", cfg.Port),
+		StoragePath:  cfg.RootDir,
+		OnExit: func() {
+			log.Println("[TRAY] Exit requested via system tray context menu.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = httpServer.Shutdown(ctx)
+		},
+	}
+	trayApp = tray.New(trayConfig)
+
+	// Graceful shutdown channel for terminal interrupts
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
+		<-stopChan
+		log.Println("[SERVER] Interrupt signal received, shutting down...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = httpServer.Shutdown(ctx)
+		trayApp.Stop()
+	}()
+
+	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			log.Printf("[SERVER] Server error: %v", err)
+			trayApp.Stop()
 		}
 	}()
 
-	<-stopChan
-	fmt.Println("\nShutting down server gracefully...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Printf("Server forced shutdown: %v", err)
+	// Run System Tray message loop on main OS thread
+	if err := trayApp.Run(); err != nil {
+		log.Printf("[TRAY] Tray loop error: %v", err)
 	}
 
-	fmt.Println("Server stopped.")
+	log.Println("[SERVER] Vido Tunnel stopped cleanly.")
 }

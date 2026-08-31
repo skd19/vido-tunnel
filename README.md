@@ -91,21 +91,33 @@ vido-tunnel/
 - **Go 1.22+** installed on your system.
 
 ### 2. Build Executable
-Compile the application into a single executable binary:
+
+#### A. Silent Windows System Tray Mode (Recommended)
+Builds the app with a hidden console window and native Windows System Tray icon:
+```powershell
+go build -ldflags "-H=windowsgui" -o vido-tunnel.exe .
+```
+
+#### B. Console Mode (For Debugging)
+Builds standard console binary with terminal log output:
 ```powershell
 go build -o vido-tunnel.exe .
 ```
 
-### 3. Run the Server
-Launch the server with custom flags or default settings:
+### 3. Run the Application
+Launch the executable with custom flags or default settings:
 ```powershell
 .\vido-tunnel.exe -root "C:\Users\sk\Videos\Vidoveo" -key "yourSecretKey123" -port 8080 -vidoveo-path "C:\Vidoveo\Vidoveo.exe" -vidoveo-port 7788
 ```
 
-Open your browser and navigate to:
-```text
-http://localhost:8080
-```
+- When compiled in **System Tray mode**, `vido-tunnel.exe` runs silently in the background and places an icon in the Windows notification area.
+- **Right-Click Tray Menu**:
+  - 🌐 **Open Dashboard**: Opens `http://localhost:8080` in your default browser.
+  - 🎮 **Open Control Panel**: Opens `http://localhost:8080/control` in your browser.
+  - 📁 **Open Storage Folder**: Opens `C:\Users\sk\Videos\Vidoveo` in Windows File Explorer.
+  - ──────────
+  - 🚪 **Exit Vido Tunnel**: Gracefully terminates the server and removes the tray icon.
+- **Left Double-Click**: Double-clicking the tray icon immediately opens the web dashboard.
 
 ---
 
