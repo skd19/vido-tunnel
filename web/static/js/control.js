@@ -2,11 +2,17 @@
 
 let pollIntervalId = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+function init() {
     fetchControlStatus();
     startAutoPolling();
     initControlActions();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
 
 async function fetchControlStatus() {
     try {
@@ -160,11 +166,16 @@ function initControlActions() {
 
     const exitBtn = document.getElementById('btnExitApp');
     const confirmExitBtn = document.getElementById('btnConfirmExit');
+    const stopVidoveoToggle = document.getElementById('stopVidoveoToggle');
+    const stopTunnelToggle = document.getElementById('stopTunnelToggle');
     const shutdownPcToggle = document.getElementById('shutdownPcToggle');
     const modalShutdownNotice = document.getElementById('modalShutdownNotice');
+    const modalVidoveoNotice = document.getElementById('modalVidoveoNotice');
+    const modalTunnelNotice = document.getElementById('modalTunnelNotice');
+
     let exitModal = null;
     const modalEl = document.getElementById('exitConfirmModal');
-    if (modalEl && typeof bootstrap !== 'undefined') {
+    if (modalEl && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         exitModal = new bootstrap.Modal(modalEl);
     }
 
@@ -321,21 +332,6 @@ function initControlActions() {
                 fetchControlStatus();
             }
         });
-    }
-
-    const exitBtn = document.getElementById('btnExitApp');
-    const confirmExitBtn = document.getElementById('btnConfirmExit');
-    const stopVidoveoToggle = document.getElementById('stopVidoveoToggle');
-    const stopTunnelToggle = document.getElementById('stopTunnelToggle');
-    const shutdownPcToggle = document.getElementById('shutdownPcToggle');
-    const modalShutdownNotice = document.getElementById('modalShutdownNotice');
-    const modalVidoveoNotice = document.getElementById('modalVidoveoNotice');
-    const modalTunnelNotice = document.getElementById('modalTunnelNotice');
-
-    let exitModal = null;
-    const modalEl = document.getElementById('exitConfirmModal');
-    if (modalEl && typeof bootstrap !== 'undefined') {
-        exitModal = new bootstrap.Modal(modalEl);
     }
 
     if (exitBtn) {
