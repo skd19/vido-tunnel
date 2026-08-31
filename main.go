@@ -153,6 +153,7 @@ func main() {
 		DashboardURL: fmt.Sprintf("http://localhost:%s", cfg.Port),
 		ControlURL:   fmt.Sprintf("http://localhost:%s/control", cfg.Port),
 		StoragePath:  cfg.RootDir,
+		SecretKey:    cfg.SecretKey,
 		OnStartVidoveo: func() {
 			log.Println("[TRAY] Starting Vidoveo from tray menu...")
 			_ = procMgr.Start()

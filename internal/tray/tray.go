@@ -10,8 +10,17 @@ import (
 )
 
 var (
+	kernel32                   = syscall.NewLazyDLL("kernel32.dll")
 	user32                     = syscall.NewLazyDLL("user32.dll")
 	shell32                    = syscall.NewLazyDLL("shell32.dll")
+	procGlobalAlloc            = kernel32.NewProc("GlobalAlloc")
+	procGlobalLock             = kernel32.NewProc("GlobalLock")
+	procGlobalUnlock           = kernel32.NewProc("GlobalUnlock")
+	procRtlMoveMemory          = kernel32.NewProc("RtlMoveMemory")
+	procOpenClipboard          = user32.NewProc("OpenClipboard")
+	procCloseClipboard         = user32.NewProc("CloseClipboard")
+	procEmptyClipboard         = user32.NewProc("EmptyClipboard")
+	procSetClipboardData       = user32.NewProc("SetClipboardData")
 	procRegisterClassExW       = user32.NewProc("RegisterClassExW")
 	procCreateWindowExW        = user32.NewProc("CreateWindowExW")
 	procDefWindowProcW         = user32.NewProc("DefWindowProcW")
@@ -53,16 +62,20 @@ const (
 	TPM_BOTTOMALIGN = 0x0020
 	TPM_RIGHTALIGN  = 0x0008
 
+	GMEM_MOVEABLE   = 0x0002
+	CF_UNICODETEXT  = 13
+
 	IDI_APPLICATION = 32512
 	IDI_SHIELD      = 32518
 
 	ID_OPEN_DASHBOARD = 1001
 	ID_OPEN_CONTROL   = 1002
 	ID_OPEN_FOLDER    = 1003
-	ID_VIDOVEO_START  = 1004
-	ID_VIDOVEO_STOP   = 1005
-	ID_TUNNEL_RESTART = 1006
-	ID_EXIT           = 1007
+	ID_COPY_KEY       = 1004
+	ID_VIDOVEO_START  = 1005
+	ID_VIDOVEO_STOP   = 1006
+	ID_TUNNEL_RESTART = 1007
+	ID_EXIT           = 1008
 )
 
 type POINT struct {
@@ -117,6 +130,7 @@ type Config struct {
 	DashboardURL    string
 	ControlURL      string
 	StoragePath     string
+	SecretKey       string
 	OnStartVidoveo  func()
 	OnStopVidoveo   func()
 	OnRestartTunnel func()
@@ -258,6 +272,8 @@ func wndProc(hwnd syscall.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 			OpenURL(currentApp.cfg.ControlURL)
 		case ID_OPEN_FOLDER:
 			OpenFolder(currentApp.cfg.StoragePath)
+		case ID_COPY_KEY:
+			_ = CopyToClipboard(currentApp.cfg.SecretKey)
 		case ID_VIDOVEO_START:
 			if currentApp.cfg.OnStartVidoveo != nil {
 				go currentApp.cfg.OnStartVidoveo()
@@ -296,6 +312,7 @@ func (a *App) showContextMenu() {
 	dashStr, _ := syscall.UTF16PtrFromString("Open Dashboard")
 	ctrlStr, _ := syscall.UTF16PtrFromString("Open Control Panel")
 	folderStr, _ := syscall.UTF16PtrFromString("Open Storage Folder")
+	copyKeyStr, _ := syscall.UTF16PtrFromString("Copy Secret Key")
 	startVidStr, _ := syscall.UTF16PtrFromString("Start Vidoveo")
 	stopVidStr, _ := syscall.UTF16PtrFromString("Stop Vidoveo")
 	restartTunStr, _ := syscall.UTF16PtrFromString("Restart Cloudflare Tunnel")
@@ -304,6 +321,7 @@ func (a *App) showContextMenu() {
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_DASHBOARD), uintptr(unsafe.Pointer(dashStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_CONTROL), uintptr(unsafe.Pointer(ctrlStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_OPEN_FOLDER), uintptr(unsafe.Pointer(folderStr)))
+	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_COPY_KEY), uintptr(unsafe.Pointer(copyKeyStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_SEPARATOR), 0, 0)
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_VIDOVEO_START), uintptr(unsafe.Pointer(startVidStr)))
 	procAppendMenuW.Call(hMenu, uintptr(MF_STRING), uintptr(ID_VIDOVEO_STOP), uintptr(unsafe.Pointer(stopVidStr)))
@@ -325,6 +343,42 @@ func (a *App) showContextMenu() {
 		0,
 	)
 	procPostMessageW.Call(uintptr(a.hwnd), uintptr(WM_NULL), 0, 0)
+}
+
+// CopyToClipboard copies UTF-16 text to the Windows system clipboard
+func CopyToClipboard(text string) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	utf16, err := syscall.UTF16FromString(text)
+	if err != nil {
+		return err
+	}
+	numBytes := len(utf16) * 2
+
+	hMem, _, _ := procGlobalAlloc.Call(uintptr(GMEM_MOVEABLE), uintptr(numBytes))
+	if hMem == 0 {
+		return fmt.Errorf("GlobalAlloc failed")
+	}
+
+	ptr, _, _ := procGlobalLock.Call(hMem)
+	if ptr == 0 {
+		return fmt.Errorf("GlobalLock failed")
+	}
+
+	procRtlMoveMemory.Call(ptr, uintptr(unsafe.Pointer(&utf16[0])), uintptr(numBytes))
+
+	procGlobalUnlock.Call(hMem)
+
+	r, _, _ := procOpenClipboard.Call(0)
+	if r == 0 {
+		return fmt.Errorf("OpenClipboard failed")
+	}
+	defer procCloseClipboard.Call()
+
+	procEmptyClipboard.Call()
+	procSetClipboardData.Call(uintptr(CF_UNICODETEXT), hMem)
+	return nil
 }
 
 // OpenURL opens a URL in the user's default web browser

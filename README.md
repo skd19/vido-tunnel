@@ -115,6 +115,7 @@ Launch the executable with custom flags or default settings:
   - 🌐 **Open Dashboard**: Opens `http://localhost:8080` in your default browser.
   - 🎮 **Open Control Panel**: Opens `http://localhost:8080/control` in your browser.
   - 📁 **Open Storage Folder**: Opens `C:\Users\sk\Videos\Vidoveo` in Windows File Explorer.
+  - 🔑 **Copy Secret Key**: Copies the authentication secret key to your Windows clipboard.
   - ──────────
   - ▶️ **Start Vidoveo**: Starts `Vidoveo.exe` in background minimized.
   - ⏹️ **Stop Vidoveo**: Cleanly stops `Vidoveo.exe`.
