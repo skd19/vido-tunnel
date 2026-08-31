@@ -26,7 +26,9 @@ func main() {
 
 	// Ensure the root directory exists or create it
 	if err := os.MkdirAll(cfg.RootDir, 0755); err != nil {
-		log.Printf("[WARNING] Could not create or access root dir: %v", err)
+		log.Printf("[WARNING] Could not create or access root dir '%s': %v", cfg.RootDir, err)
+	} else {
+		log.Printf("[STORAGE] Root folder verified: %s", cfg.RootDir)
 	}
 
 	authMgr := auth.NewManager(cfg.SecretKey, cfg.SessionSecret)

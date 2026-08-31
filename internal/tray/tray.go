@@ -2,6 +2,7 @@ package tray
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"syscall"
@@ -336,11 +337,12 @@ func OpenURL(targetURL string) {
 	_ = cmd.Start()
 }
 
-// OpenFolder opens a folder path in Windows Explorer
+// OpenFolder opens a folder path in Windows Explorer (ensuring it exists first)
 func OpenFolder(dirPath string) {
 	if dirPath == "" {
 		return
 	}
+	_ = os.MkdirAll(dirPath, 0755)
 	cmd := exec.Command("explorer.exe", dirPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	_ = cmd.Start()

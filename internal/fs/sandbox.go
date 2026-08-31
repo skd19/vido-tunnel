@@ -85,6 +85,9 @@ func ResolveSandboxedPath(rootDir, subPath string) (string, error) {
 		return "", fmt.Errorf("failed to get absolute root path: %w", err)
 	}
 
+	// Ensure root folder exists
+	_ = os.MkdirAll(absRoot, 0755)
+
 	// Combine root and cleaned subpath
 	targetPath := filepath.Join(absRoot, filepath.FromSlash(cleanSub))
 	targetPath = filepath.Clean(targetPath)
