@@ -1,0 +1,106 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"io/fs"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/skd19/vido-tunnel/internal/auth"
+	"github.com/skd19/vido-tunnel/internal/config"
+	"github.com/skd19/vido-tunnel/internal/handlers"
+	"github.com/skd19/vido-tunnel/internal/process"
+	"github.com/skd19/vido-tunnel/web"
+)
+
+func main() {
+	cfg := config.LoadConfig()
+
+	// Ensure the root directory exists or create it
+	if err := os.MkdirAll(cfg.RootDir, 0755); err != nil {
+		log.Printf("[WARNING] Could not create or access root dir: %v", err)
+	}
+
+	authMgr := auth.NewManager(cfg.SecretKey, cfg.SessionSecret)
+	rateLimiter := auth.NewRateLimiter(5, 5*time.Minute)
+	procMgr := process.NewManager(cfg.VidoveoPath, cfg.VidoveoPort)
+
+	srv, err := handlers.NewServer(cfg, authMgr, rateLimiter, procMgr)
+	if err != nil {
+		log.Fatalf("Failed to initialize server: %v", err)
+	}
+
+	mux := http.NewServeMux()
+
+	// Static assets from embedded FS
+	staticFS, err := fs.Sub(web.Content, "static")
+	if err != nil {
+		log.Fatalf("Failed to mount static assets: %v", err)
+	}
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+
+	// Public routes
+	mux.HandleFunc("/login", srv.HandleLogin)
+	mux.HandleFunc("/logout", srv.HandleLogout)
+
+	// Protected routes
+	mux.HandleFunc("/", handlers.RequireAuth(authMgr, srv.HandleBrowse))
+	mux.HandleFunc("/browse", handlers.RequireAuth(authMgr, srv.HandleBrowse))
+	mux.HandleFunc("/download", handlers.RequireAuth(authMgr, srv.HandleDownload))
+	mux.HandleFunc("/download/zip", handlers.RequireAuth(authMgr, srv.HandleDownloadZip))
+	mux.HandleFunc("/rename", handlers.RequireAuth(authMgr, srv.HandleRenameFolder))
+	mux.HandleFunc("/control", handlers.RequireAuth(authMgr, srv.HandleControlPanel))
+	mux.HandleFunc("/control/status", handlers.RequireAuth(authMgr, srv.HandleControlStatus))
+	mux.HandleFunc("/control/start", handlers.RequireAuth(authMgr, srv.HandleControlStart))
+	mux.HandleFunc("/control/stop", handlers.RequireAuth(authMgr, srv.HandleControlStop))
+
+	// Apply middleware stack
+	handler := handlers.SecurityHeadersMiddleware(handlers.LoggingMiddleware(mux))
+
+	httpServer := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      handler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Minute, // Long timeout for large file/ZIP streams
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Server startup info banner
+	fmt.Println("==========================================================")
+	fmt.Println("           VIDO TUNNEL - SECURE WEB APPLICATION           ")
+	fmt.Println("==========================================================")
+	fmt.Printf(" Server URL      : http://localhost:%s\n", cfg.Port)
+	fmt.Printf(" Scoped Root     : %s\n", cfg.RootDir)
+	fmt.Printf(" Monitored Exe   : %s\n", cfg.VidoveoPath)
+	fmt.Printf(" Monitored Port  : %d\n", cfg.VidoveoPort)
+	fmt.Printf(" Auth Secret Key : %s\n", cfg.SecretKey)
+	fmt.Println("==========================================================")
+	fmt.Println(" Ready for connections. Press Ctrl+C to shut down.")
+
+	// Graceful shutdown channel
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	<-stopChan
+	fmt.Println("\nShutting down server gracefully...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("Server forced shutdown: %v", err)
+	}
+
+	fmt.Println("Server stopped.")
+}

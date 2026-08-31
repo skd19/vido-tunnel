@@ -1,0 +1,136 @@
+{{define "title"}}Control Panel - Vido Tunnel{{end}}
+
+{{define "content"}}
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+        <!-- Page Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="fw-bold mb-1"><i class="bi bi-sliders2 text-primary me-2"></i> System Control Panel</h4>
+                <p class="text-muted small mb-0">Monitor & manage Vidoveo application lifecycle and port status</p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="autoPollCheck" checked>
+                    <label class="form-check-label text-muted small" for="autoPollCheck">Live Status (3s)</label>
+                </div>
+                <button id="btnManualRefresh" class="btn btn-outline-secondary btn-sm px-3">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Dynamic Action Alert -->
+        <div id="actionAlert" class="alert alert-dismissible fade show d-none" role="alert"></div>
+
+        <div class="row g-4 mb-4">
+            <!-- Process Status Card -->
+            <div class="col-12 col-lg-7">
+                <div class="card card-glass p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h5 class="fw-bold mb-1">
+                                <i class="bi bi-window-desktop text-info me-2"></i> Vidoveo Application
+                            </h5>
+                            <span class="text-muted small font-monospace" id="procPathBadge">
+                                {{.Status.ExecPath}}
+                            </span>
+                        </div>
+                        <div id="procStatusBadge">
+                            {{if .Status.Running}}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 py-2 px-3">
+                                <span class="pulse-dot running"></span> RUNNING
+                            </span>
+                            {{else}}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-6 py-2 px-3">
+                                <span class="pulse-dot stopped"></span> STOPPED
+                            </span>
+                            {{end}}
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary-subtle my-3">
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-sm-4">
+                            <span class="text-muted small d-block">Process ID (PID)</span>
+                            <span class="fs-5 fw-bold font-monospace text-light" id="procPidValue">
+                                {{if and .Status.Running (gt .Status.PID 0)}}{{.Status.PID}}{{else}}--{{end}}
+                            </span>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <span class="text-muted small d-block">Monitored Port</span>
+                            <span class="fs-5 fw-bold font-monospace text-info">{{.Status.Port}}</span>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <span class="text-muted small d-block">Health State</span>
+                            <span class="small fw-semibold text-light" id="statusMessage">{{.Status.Message}}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-auto">
+                        <button id="btnStartProc" class="btn btn-success px-4 py-2 fw-semibold" {{if .Status.Running}}disabled{{end}}>
+                            <i class="bi bi-play-circle-fill me-1"></i> Start Vidoveo
+                        </button>
+                        <button id="btnStopProc" class="btn btn-danger px-4 py-2 fw-semibold" {{if not .Status.Running}}disabled{{end}}>
+                            <i class="bi bi-stop-circle-fill me-1"></i> Stop Vidoveo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Port 7788 Status Card -->
+            <div class="col-12 col-lg-5">
+                <div class="card card-glass p-4 h-100">
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-hdd-network text-primary me-2"></i> Port Health Monitor
+                    </h5>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">TCP Port 7788 Status</span>
+                            <div id="portStatusBadge">
+                                {{if .Status.PortOpen}}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 py-2 px-3">
+                                    <span class="pulse-dot running"></span> PORT 7788 OPEN
+                                </span>
+                                {{else}}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-6 py-2 px-3">
+                                    <span class="pulse-dot stopped"></span> PORT 7788 CLOSED
+                                </span>
+                                {{end}}
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0">
+                            Probing TCP socket at <code class="text-info">127.0.0.1:{{.Status.Port}}</code>
+                        </p>
+                    </div>
+
+                    <div class="card bg-dark-subtle border border-secondary-subtle p-3 rounded-3 mt-auto">
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="text-muted">Last Checked:</span>
+                            <span class="font-monospace text-light fw-bold" id="lastCheckedTime">{{.Status.LastChecked}}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security & Instructions Note -->
+        <div class="card card-glass p-3 border-secondary-subtle">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-shield-check text-success fs-3 me-3"></i>
+                <div class="small text-muted">
+                    <strong>Process Safety Guard:</strong> Process execution is strictly bound to the configured binary path (<code class="text-light">{{.Status.ExecPath}}</code>). Arbitrary external command execution is prohibited.
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/control.js"></script>
+{{end}}

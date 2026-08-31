@@ -1,0 +1,187 @@
+{{define "title"}}Explorer - {{if .View.CurrentRelPath}}{{.View.CurrentRelPath}}{{else}}Root{{end}}{{end}}
+
+{{define "content"}}
+<input type="hidden" id="currentRelPath" value="{{.View.CurrentRelPath}}">
+
+<!-- Header controls and breadcrumb -->
+<div class="card card-glass p-3 mb-4">
+    <div class="row align-items-center g-3">
+        <!-- Breadcrumbs -->
+        <div class="col-12 col-md-6 d-flex align-items-center">
+            {{if .View.HasParent}}
+            <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="navigateToDir('{{.View.ParentRelPath}}')" title="Go Up">
+                <i class="bi bi-arrow-left"></i> Up
+            </button>
+            {{end}}
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    {{range .View.Breadcrumbs}}
+                    {{if .IsActive}}
+                    <li class="breadcrumb-item active fw-bold" aria-current="page">{{.Name}}</li>
+                    {{else}}
+                    <li class="breadcrumb-item">
+                        <a href="javascript:void(0)" onclick="navigateToDir('{{.RelPath}}')">{{.Name}}</a>
+                    </li>
+                    {{end}}
+                    {{end}}
+                </ol>
+            </nav>
+        </div>
+
+        <!-- Search & Actions -->
+        <div class="col-12 col-md-6 d-flex align-items-center justify-content-md-end gap-2">
+            <div class="input-group input-group-sm" style="max-width: 280px;">
+                <span class="input-group-text bg-dark border-secondary-subtle text-muted">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" id="explorerSearch" class="form-control form-control-dark form-control-sm" placeholder="Filter items...">
+            </div>
+
+            <!-- Download Current Folder as ZIP -->
+            <button type="button" class="btn btn-outline-primary btn-sm px-3" onclick="downloadFolderZip('{{.View.CurrentRelPath}}')" title="Download current folder as a ZIP archive">
+                <i class="bi bi-file-earmark-zip me-1"></i> Download Folder ZIP
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Explorer Items Table -->
+<div class="card card-glass overflow-hidden">
+    <div class="table-responsive">
+        <table class="table explorer-table align-middle">
+            <thead>
+                <tr>
+                    <th scope="col" style="min-width: 280px;">NAME</th>
+                    <th scope="col" style="width: 130px;">SIZE</th>
+                    <th scope="col" style="width: 170px;">MODIFIED</th>
+                    <th scope="col" class="text-end" style="width: 220px;">ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody id="explorerTableBody">
+                {{if .View.HasParent}}
+                <tr class="explorer-row" data-name="..">
+                    <td>
+                        <span class="d-inline-flex align-items-center">
+                            <i class="bi bi-arrow-90deg-up text-secondary me-2 fs-5"></i>
+                            <a href="javascript:void(0)" onclick="navigateToDir('{{.View.ParentRelPath}}')" class="item-link">.. (Parent Directory)</a>
+                        </span>
+                    </td>
+                    <td class="text-muted">--</td>
+                    <td class="text-muted">--</td>
+                    <td class="text-end"></td>
+                </tr>
+                {{end}}
+
+                {{range .View.Items}}
+                <tr class="explorer-row" data-name="{{.Name}}">
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <i class="bi {{.IconClass}} me-2 fs-5"></i>
+                            {{if .IsDir}}
+                            <a href="javascript:void(0)" onclick="navigateToDir('{{.RelPath}}')" class="item-link fw-semibold" title="Open Folder">
+                                {{.Name}}
+                            </a>
+                            {{else}}
+                            <a href="javascript:void(0)" onclick="downloadFile('{{.RelPath}}')" class="item-link" title="Download File">
+                                {{.Name}}
+                            </a>
+                            {{end}}
+                        </div>
+                    </td>
+                    <td class="text-muted font-monospace small">
+                        {{.FormattedSize}}
+                    </td>
+                    <td class="text-muted small">
+                        {{.FormattedModTime}}
+                    </td>
+                    <td class="text-end">
+                        {{if .IsDir}}
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-info btn-action" onclick="downloadFolderZip('{{.RelPath}}')" title="Download Folder as ZIP">
+                                <i class="bi bi-file-earmark-zip"></i> ZIP
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-action" onclick="openRenameModal('{{.RelPath}}', '{{.Name}}')" title="Rename Folder">
+                                <i class="bi bi-pencil-square"></i> Rename
+                            </button>
+                        </div>
+                        {{else}}
+                        <button type="button" class="btn btn-outline-success btn-sm btn-action" onclick="downloadFile('{{.RelPath}}')" title="Download File">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        {{end}}
+                    </td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="4" class="text-center py-5 text-muted">
+                        <i class="bi bi-folder2 fs-1 d-block mb-2 text-secondary"></i>
+                        <p class="mb-0">This directory is empty</p>
+                    </td>
+                </tr>
+                {{end}}
+
+                <tr id="noMatchRow" style="display: none;">
+                    <td colspan="4" class="text-center py-4 text-muted">
+                        <i class="bi bi-search fs-3 d-block mb-2"></i>
+                        No matching items found
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer Summary -->
+    <div class="card-footer bg-transparent border-top border-secondary-subtle py-2 px-3 d-flex justify-content-between align-items-center text-muted small">
+        <div>
+            <span><strong>{{.View.TotalDirs}}</strong> folders</span>,
+            <span><strong>{{.View.TotalFiles}}</strong> files</span>
+        </div>
+        <div>
+            <span>Total size: <strong>{{.View.FormattedTotalSize}}</strong></span>
+        </div>
+    </div>
+</div>
+
+<!-- Rename Modal -->
+<div class="modal fade" id="renameModal" tabindex="-1" aria-labelledby="renameModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content modal-content-dark">
+            <div class="modal-header">
+                <h5 class="modal-title" id="renameModalLabel">
+                    <i class="bi bi-pencil-square text-warning me-2"></i> Rename Folder
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="renameForm">
+                <div class="modal-body">
+                    <div id="renameErrorAlert" class="alert alert-danger d-none py-2 px-3 small mb-3"></div>
+
+                    <input type="hidden" id="renameFolderPath" name="path">
+                    
+                    <p class="small text-muted mb-2">
+                        Renaming: <strong id="renameCurrentName" class="text-light"></strong>
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="renameFolderName" class="form-label small text-muted">NEW FOLDER NAME</label>
+                        <input type="text" class="form-control form-control-dark" id="renameFolderName" name="new_name" required autocomplete="off">
+                        <div class="form-text text-muted small">
+                            Folder name cannot contain path separators or special characters (< > : " / \ | ? *).
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" id="renameSubmitBtn" class="btn btn-warning btn-sm fw-semibold">
+                        <i class="bi bi-check-lg me-1"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script src="/static/js/app.js"></script>
+{{end}}

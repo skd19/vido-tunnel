@@ -1,0 +1,71 @@
+{{define "title"}}Login - Vido Tunnel{{end}}
+
+{{define "content"}}
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+        <div class="card card-glass p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="d-inline-flex p-3 rounded-circle bg-primary-subtle text-primary mb-3">
+                    <i class="bi bi-shield-lock-fill fs-2"></i>
+                </div>
+                <h3 class="fw-bold mb-1">Vido Tunnel</h3>
+                <p class="text-muted small">Secure Video & Folder Explorer Access</p>
+            </div>
+
+            {{if .Error}}
+            <div class="alert alert-danger d-flex align-items-center small py-2 px-3 mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <div>{{.Error}}</div>
+            </div>
+            {{end}}
+
+            <form method="POST" action="/login">
+                <div class="mb-4">
+                    <label for="secretKey" class="form-label text-muted small fw-semibold">ACCESS SECRET KEY</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-secondary-subtle text-muted">
+                            <i class="bi bi-key-fill"></i>
+                        </span>
+                        <input type="password" class="form-control form-control-dark" id="secretKey" name="key" placeholder="Enter secret key..." required autofocus>
+                        <button class="btn btn-outline-secondary" type="button" id="toggleKeyVis">
+                            <i class="bi bi-eye" id="toggleIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="d-grid mb-3">
+                    <button type="submit" class="btn btn-primary py-2 fw-semibold">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Authenticate
+                    </button>
+                </div>
+            </form>
+
+            <div class="text-center mt-3">
+                <span class="badge bg-secondary-subtle text-muted border border-secondary-subtle px-3 py-2 small">
+                    <i class="bi bi-shield-check me-1 text-success"></i> Sandboxed & Rate-Limited
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+    const toggleBtn = document.getElementById('toggleKeyVis');
+    const keyInput = document.getElementById('secretKey');
+    const toggleIcon = document.getElementById('toggleIcon');
+
+    if (toggleBtn && keyInput) {
+        toggleBtn.addEventListener('click', () => {
+            if (keyInput.type === 'password') {
+                keyInput.type = 'text';
+                toggleIcon.className = 'bi bi-eye-slash';
+            } else {
+                keyInput.type = 'password';
+                toggleIcon.className = 'bi bi-eye';
+            }
+        });
+    }
+</script>
+{{end}}
