@@ -108,19 +108,23 @@ func main() {
 	var teardownOnce sync.Once
 	var trayApp *tray.App
 
-	teardown := func(shutdownPC bool) {
+	teardown := func(stopVidoveo, stopTunnel, shutdownPC bool) {
 		teardownOnce.Do(func() {
 			log.Println("[TEARDOWN] Starting complete process cleanup...")
 
-			// 1. Terminate Vidoveo.exe if running
-			if isRun, _ := procMgr.FindRunningProcess(); isRun {
-				log.Println("[TEARDOWN] Stopping Vidoveo application...")
-				_ = procMgr.Stop()
+			// 1. Terminate Vidoveo.exe if requested and running
+			if stopVidoveo {
+				if isRun, _ := procMgr.FindRunningProcess(); isRun {
+					log.Println("[TEARDOWN] Stopping Vidoveo application...")
+					_ = procMgr.Stop()
+				}
 			}
 
-			// 2. Stop Cloudflare tunnel
-			log.Println("[TEARDOWN] Stopping Cloudflare tunnel...")
-			_ = tunnelMgr.Stop()
+			// 2. Stop Cloudflare tunnel if requested
+			if stopTunnel {
+				log.Println("[TEARDOWN] Stopping Cloudflare tunnel...")
+				_ = tunnelMgr.Stop()
+			}
 
 			// 3. Stop HTTP server
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -149,8 +153,8 @@ func main() {
 	}
 
 	// Connect HTTP Control Panel Exit to teardown
-	srv.SetOnExit(func(shutdownPC bool) {
-		teardown(shutdownPC)
+	srv.SetOnExit(func(stopVidoveo, stopTunnel, shutdownPC bool) {
+		teardown(stopVidoveo, stopTunnel, shutdownPC)
 	})
 
 	// Initialize System Tray App
@@ -174,7 +178,7 @@ func main() {
 		},
 		OnExit: func() {
 			log.Println("[TRAY] Exit requested via system tray context menu.")
-			teardown(false)
+			teardown(true, true, false)
 		},
 	}
 	trayApp = tray.New(trayConfig)
@@ -186,13 +190,13 @@ func main() {
 	go func() {
 		<-stopChan
 		log.Println("[SERVER] Interrupt signal received, shutting down...")
-		teardown(false)
+		teardown(true, true, false)
 	}()
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("[SERVER] Server error: %v", err)
-			teardown(false)
+			teardown(true, true, false)
 		}
 	}()
 

@@ -25,7 +25,7 @@ type Server struct {
 	procMgr     *process.Manager
 	tunnelMgr   *process.TunnelManager
 	pages       map[string]*template.Template
-	onExit      func(shutdownPC bool)
+	onExit      func(stopVidoveo, stopTunnel, shutdownPC bool)
 }
 
 func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.RateLimiter, procMgr *process.Manager, tunnelMgr *process.TunnelManager) (*Server, error) {
@@ -56,7 +56,7 @@ func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.Rate
 }
 
 // SetOnExit sets the callback invoked when exit is requested via HTTP Control Panel
-func (s *Server) SetOnExit(fn func(shutdownPC bool)) {
+func (s *Server) SetOnExit(fn func(stopVidoveo, stopTunnel, shutdownPC bool)) {
 	s.onExit = fn
 }
 
@@ -390,19 +390,23 @@ func (s *Server) HandleControlAppExit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stopVidoveo := r.FormValue("stop_vidoveo") != "false" && r.FormValue("stop_vidoveo") != "0"
+	stopTunnel := r.FormValue("stop_tunnel") != "false" && r.FormValue("stop_tunnel") != "0"
 	shutdownPC := r.FormValue("shutdown_pc") == "true" || r.FormValue("shutdown_pc") == "1"
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":     true,
-		"message":     "Server shutdown initiated. Closing application...",
-		"shutdown_pc": shutdownPC,
+		"success":      true,
+		"message":      "Server shutdown initiated. Closing application...",
+		"stop_vidoveo": stopVidoveo,
+		"stop_tunnel":  stopTunnel,
+		"shutdown_pc":  shutdownPC,
 	})
 
 	if s.onExit != nil {
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			s.onExit(shutdownPC)
+			s.onExit(stopVidoveo, stopTunnel, shutdownPC)
 		}()
 	}
 }

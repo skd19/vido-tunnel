@@ -232,9 +232,13 @@ func TestHandleControlAppExit(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	exitCalled := false
+	stopVidoveoCalled := false
+	stopTunnelCalled := false
 	shutdownPCCalled := false
-	srv.SetOnExit(func(shutdownPC bool) {
+	srv.SetOnExit(func(stopVidoveo, stopTunnel, shutdownPC bool) {
 		exitCalled = true
+		stopVidoveoCalled = stopVidoveo
+		stopTunnelCalled = stopTunnel
 		shutdownPCCalled = shutdownPC
 	})
 
@@ -242,6 +246,8 @@ func TestHandleControlAppExit(t *testing.T) {
 	token := authMgr.CreateSessionToken()
 
 	form := url.Values{}
+	form.Set("stop_vidoveo", "true")
+	form.Set("stop_tunnel", "true")
 	form.Set("shutdown_pc", "true")
 
 	req := httptest.NewRequest(http.MethodPost, "/control/app/exit", strings.NewReader(form.Encode()))
@@ -257,6 +263,12 @@ func TestHandleControlAppExit(t *testing.T) {
 	time.Sleep(600 * time.Millisecond)
 	if !exitCalled {
 		t.Errorf("onExit callback was not triggered")
+	}
+	if !stopVidoveoCalled {
+		t.Errorf("stopVidoveo flag was not passed as true")
+	}
+	if !stopTunnelCalled {
+		t.Errorf("stopTunnel flag was not passed as true")
 	}
 	if !shutdownPCCalled {
 		t.Errorf("shutdownPC flag was not passed as true")

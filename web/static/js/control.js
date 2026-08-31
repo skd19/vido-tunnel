@@ -323,15 +323,24 @@ function initControlActions() {
         });
     }
 
+    const exitBtn = document.getElementById('btnExitApp');
+    const confirmExitBtn = document.getElementById('btnConfirmExit');
+    const stopVidoveoToggle = document.getElementById('stopVidoveoToggle');
+    const stopTunnelToggle = document.getElementById('stopTunnelToggle');
+    const shutdownPcToggle = document.getElementById('shutdownPcToggle');
+    const modalShutdownNotice = document.getElementById('modalShutdownNotice');
+    const modalVidoveoNotice = document.getElementById('modalVidoveoNotice');
+    const modalTunnelNotice = document.getElementById('modalTunnelNotice');
+
+    let exitModal = null;
+    const modalEl = document.getElementById('exitConfirmModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        exitModal = new bootstrap.Modal(modalEl);
+    }
+
     if (exitBtn) {
         exitBtn.addEventListener('click', () => {
-            if (shutdownPcToggle && modalShutdownNotice) {
-                if (shutdownPcToggle.checked) {
-                    modalShutdownNotice.classList.remove('d-none');
-                } else {
-                    modalShutdownNotice.classList.add('d-none');
-                }
-            }
+            syncExitModal();
             if (exitModal) {
                 exitModal.show();
             } else if (confirm('Are you sure you want to close Vido Tunnel?')) {
@@ -341,15 +350,29 @@ function initControlActions() {
     }
 
     if (shutdownPcToggle) {
-        shutdownPcToggle.addEventListener('change', () => {
-            if (modalShutdownNotice) {
-                if (shutdownPcToggle.checked) {
-                    modalShutdownNotice.classList.remove('d-none');
-                } else {
-                    modalShutdownNotice.classList.add('d-none');
-                }
+        shutdownPcToggle.addEventListener('change', syncExitModal);
+    }
+    if (stopVidoveoToggle) {
+        stopVidoveoToggle.addEventListener('change', syncExitModal);
+    }
+    if (stopTunnelToggle) {
+        stopTunnelToggle.addEventListener('change', syncExitModal);
+    }
+
+    function syncExitModal() {
+        if (modalShutdownNotice && shutdownPcToggle) {
+            if (shutdownPcToggle.checked) {
+                modalShutdownNotice.classList.remove('d-none');
+            } else {
+                modalShutdownNotice.classList.add('d-none');
             }
-        });
+        }
+        if (modalVidoveoNotice && stopVidoveoToggle) {
+            modalVidoveoNotice.style.display = stopVidoveoToggle.checked ? 'list-item' : 'none';
+        }
+        if (modalTunnelNotice && stopTunnelToggle) {
+            modalTunnelNotice.style.display = stopTunnelToggle.checked ? 'list-item' : 'none';
+        }
     }
 
     if (confirmExitBtn) {
@@ -360,11 +383,15 @@ function initControlActions() {
     }
 
     async function performAppExit() {
+        const stopVidoveo = !stopVidoveoToggle || stopVidoveoToggle.checked;
+        const stopTunnel = !stopTunnelToggle || stopTunnelToggle.checked;
         const shutdownPC = shutdownPcToggle && shutdownPcToggle.checked;
-        showAlert('Closing Vido Tunnel and terminating all services...', 'warning');
+        showAlert('Closing Vido Tunnel and terminating selected services...', 'warning');
 
         try {
             const formData = new URLSearchParams();
+            formData.set('stop_vidoveo', stopVidoveo ? 'true' : 'false');
+            formData.set('stop_tunnel', stopTunnel ? 'true' : 'false');
             formData.set('shutdown_pc', shutdownPC ? 'true' : 'false');
 
             await fetch('/control/app/exit', {
@@ -380,7 +407,7 @@ function initControlActions() {
                 <div class="d-flex align-items-center justify-content-center vh-100 bg-black text-light font-monospace text-center p-4">
                     <div>
                         <h2 class="text-danger mb-3"><i class="bi bi-power"></i> Application Closed</h2>
-                        <p class="text-muted">Vido Tunnel has been shut down cleanly and processes terminated.</p>
+                        <p class="text-muted">Vido Tunnel has been shut down cleanly.</p>
                         ${shutdownPC ? '<p class="text-danger fw-bold">Computer will shut down in a few seconds...</p>' : '<p class="text-muted small">You can now close this browser tab.</p>'}
                     </div>
                 </div>

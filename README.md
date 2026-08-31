@@ -123,7 +123,10 @@ Launch the executable with custom flags or default settings:
   - ──────────
   - 🚪 **Exit Vido Tunnel**: Gracefully terminates Vido Tunnel, closes `Vidoveo.exe`, and terminates the Cloudflare tunnel.
 - **Left Double-Click**: Double-clicking the tray icon immediately opens the web dashboard.
-- **Control Panel Power Management**: Supports closing the application remotely with an optional **"Shutdown PC on Exit"** switch.
+- **Control Panel Power Management**: Supports closing the application with selective switches:
+  - Close `Vidoveo.exe` on exit (default: enabled)
+  - Close Cloudflare Tunnel on exit (default: enabled)
+  - Shutdown Host Computer on exit (default: disabled)
 
 ---
 
