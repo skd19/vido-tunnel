@@ -22,10 +22,11 @@ type Server struct {
 	authMgr     *auth.Manager
 	rateLimiter *auth.RateLimiter
 	procMgr     *process.Manager
+	tunnelMgr   *process.TunnelManager
 	pages       map[string]*template.Template
 }
 
-func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.RateLimiter, procMgr *process.Manager) (*Server, error) {
+func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.RateLimiter, procMgr *process.Manager, tunnelMgr *process.TunnelManager) (*Server, error) {
 	// Parse templates from embedded filesystem
 	tmplFS, err := fs.Sub(web.Content, "templates")
 	if err != nil {
@@ -47,6 +48,7 @@ func NewServer(cfg *config.Config, authMgr *auth.Manager, rateLimiter *auth.Rate
 		authMgr:     authMgr,
 		rateLimiter: rateLimiter,
 		procMgr:     procMgr,
+		tunnelMgr:   tunnelMgr,
 		pages:       pages,
 	}, nil
 }
@@ -220,20 +222,38 @@ func (s *Server) HandleRenameFolder(w http.ResponseWriter, r *http.Request) {
 // HandleControlPanel renders the system control panel page
 func (s *Server) HandleControlPanel(w http.ResponseWriter, r *http.Request) {
 	status := s.procMgr.GetStatus()
+	tunnelStatus := s.tunnelMgr.GetStatus()
 
 	s.renderTemplate(w, "control.html", map[string]interface{}{
 		"Authenticated": true,
 		"ActiveNav":     "control",
 		"RootDir":       s.cfg.RootDir,
 		"Status":        status,
+		"Tunnel":        tunnelStatus,
 	})
 }
 
-// HandleControlStatus returns JSON status of Vidoveo application & port 7788
+// HandleControlStatus returns JSON status of Vidoveo application, port 7788, and Cloudflare tunnel
 func (s *Server) HandleControlStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	status := s.procMgr.GetStatus()
-	_ = json.NewEncoder(w).Encode(status)
+	tunnelStatus := s.tunnelMgr.GetStatus()
+
+	response := map[string]interface{}{
+		"name":         status.Name,
+		"exec_path":    status.ExecPath,
+		"path_exists":  status.PathExists,
+		"running":      status.Running,
+		"pid":          status.PID,
+		"port":         status.Port,
+		"port_open":    status.PortOpen,
+		"last_checked": status.LastChecked,
+		"message":      status.Message,
+		"app":          status,
+		"tunnel":       tunnelStatus,
+	}
+
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // HandleControlStart initiates starting Vidoveo.exe
@@ -281,6 +301,54 @@ func (s *Server) HandleControlStop(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Application stopped successfully",
+	})
+}
+
+// HandleControlTunnelStart launches the Cloudflare tunnel
+func (s *Server) HandleControlTunnelStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err := s.tunnelMgr.Start()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Cloudflare tunnel '%s' started successfully", s.cfg.TunnelName),
+	})
+}
+
+// HandleControlTunnelStop terminates the Cloudflare tunnel
+func (s *Server) HandleControlTunnelStop(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err := s.tunnelMgr.Stop()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Cloudflare tunnel '%s' stopped successfully", s.cfg.TunnelName),
 	})
 }
 

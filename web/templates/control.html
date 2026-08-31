@@ -26,7 +26,7 @@
 
         <div class="row g-4 mb-4">
             <!-- Process Status Card -->
-            <div class="col-12 col-lg-7">
+            <div class="col-12 col-lg-6">
                 <div class="card card-glass p-4 h-100">
                     <div class="d-flex justify-content-between align-items-start mb-3">
                         <div>
@@ -81,7 +81,7 @@
             </div>
 
             <!-- Port 7788 Status Card -->
-            <div class="col-12 col-lg-5">
+            <div class="col-12 col-lg-6">
                 <div class="card card-glass p-4 h-100">
                     <h5 class="fw-bold mb-3">
                         <i class="bi bi-hdd-network text-primary me-2"></i> Port Health Monitor
@@ -117,12 +117,78 @@
             </div>
         </div>
 
+        <!-- Cloudflare Tunnel Card -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card card-glass p-4">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-cloud-check-fill text-warning fs-4"></i>
+                                <h5 class="fw-bold mb-0">Cloudflare Tunnel Manager</h5>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace px-2 py-1">
+                                    {{.Tunnel.TunnelName}}
+                                </span>
+                            </div>
+                            <span class="text-muted small font-monospace d-block mt-1" id="tunnelBinaryBadge">
+                                {{if .Tunnel.BinaryPath}}{{.Tunnel.BinaryPath}}{{else}}cloudflared not detected in PATH{{end}}
+                            </span>
+                        </div>
+
+                        <div id="tunnelStatusBadge">
+                            {{if .Tunnel.Running}}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle fs-6 py-2 px-3">
+                                <span class="pulse-dot running"></span> TUNNEL RUNNING
+                            </span>
+                            {{else if .Tunnel.Installed}}
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-6 py-2 px-3">
+                                <span class="pulse-dot stopped"></span> TUNNEL STOPPED
+                            </span>
+                            {{else}}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle fs-6 py-2 px-3">
+                                <span class="pulse-dot warning"></span> NOT INSTALLED
+                            </span>
+                            {{end}}
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary-subtle my-3">
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-3">
+                            <span class="text-muted small d-block">Tunnel Name</span>
+                            <span class="fs-6 fw-bold font-monospace text-light" id="tunnelNameValue">{{.Tunnel.TunnelName}}</span>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <span class="text-muted small d-block">Process ID (PID)</span>
+                            <span class="fs-6 fw-bold font-monospace text-light" id="tunnelPidValue">
+                                {{if and .Tunnel.Running (gt .Tunnel.PID 0)}}{{.Tunnel.PID}}{{else}}--{{end}}
+                            </span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <span class="text-muted small d-block">Tunnel State</span>
+                            <span class="small fw-semibold text-light" id="tunnelMessage">{{.Tunnel.Message}}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button id="btnStartTunnel" class="btn btn-warning text-dark px-4 py-2 fw-semibold" {{if or .Tunnel.Running (not .Tunnel.Installed)}}disabled{{end}}>
+                            <i class="bi bi-play-circle-fill me-1"></i> Start Tunnel
+                        </button>
+                        <button id="btnStopTunnel" class="btn btn-outline-danger px-4 py-2 fw-semibold" {{if not .Tunnel.Running}}disabled{{end}}>
+                            <i class="bi bi-stop-circle-fill me-1"></i> Stop Tunnel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Security & Instructions Note -->
         <div class="card card-glass p-3 border-secondary-subtle">
             <div class="d-flex align-items-center">
                 <i class="bi bi-shield-check text-success fs-3 me-3"></i>
                 <div class="small text-muted">
-                    <strong>Process Safety Guard:</strong> Process execution is strictly bound to the configured binary path (<code class="text-light">{{.Status.ExecPath}}</code>). Arbitrary external command execution is prohibited.
+                    <strong>Process Safety Guard:</strong> Process execution is strictly bound to configured binary paths (<code class="text-light">{{.Status.ExecPath}}</code> and Cloudflare tunnel <code class="text-light">{{.Tunnel.TunnelName}}</code>). Arbitrary external command execution is prohibited.
                 </div>
             </div>
         </div>

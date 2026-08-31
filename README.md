@@ -20,8 +20,9 @@ The entire application—including HTML templates, Bootstrap 5.3 CSS/JS, and Boo
 - **Live Search Filter**: Instant client-side search filtering across files and directories.
 - **Zero File Upload Policy**: Strictly read-only on files. No upload handlers exist in the codebase.
 
-### 🎮 2. Application & Port Control Panel
-- **`Vidoveo.exe` Supervisor**: Checks if `C:\Vidoveo\Vidoveo.exe` is running, shows its Process ID (PID), and allows authorized users to start or stop the application remotely. When started, it opens in the **background minimized** so it does not interrupt active windows or pop up on top.
+### 🎮 2. Application, Port & Cloudflare Tunnel Control Panel
+- **`Vidoveo.exe` Supervisor (PyInstaller Support)**: Checks if `C:\Vidoveo\Vidoveo.exe` is running, shows its Process ID (PID), and allows authorized users to start or stop the application remotely. When started, it opens in the **background minimized** (handling PyInstaller's secondary console/GUI window) without stealing window focus.
+- **Cloudflare Tunnel (`vidoveo`) Management**: Integrated replacement for `start-tunnel.ps1`. Detects `cloudflared.exe`, monitors whether the `tunnel run <name>` process is active, and provides **Start Tunnel** & **Stop Tunnel** controls right from the web dashboard.
 - **Port 7788 Health Monitor**: Probes local TCP socket `127.0.0.1:7788` with live status feedback.
 - **Live Auto-Polling**: Real-time status updates every 3 seconds with animated status indicators.
 
@@ -119,6 +120,9 @@ Settings can be specified using either command-line flags or environment variabl
 | `-port` | `VIDO_PORT` | `8080` | HTTP port the server listens on |
 | `-vidoveo-path` | `VIDOVEO_PATH` | `C:\Vidoveo\Vidoveo.exe` | Path to the `Vidoveo.exe` binary |
 | `-vidoveo-port` | `VIDOVEO_PORT` | `7788` | Local TCP port monitored for Vidoveo |
+| `-tunnel-name` | `VIDO_TUNNEL_NAME` | `vidoveo` | Cloudflare tunnel name to run and control |
+| `-cloudflared-path` | `CLOUDFLARED_PATH` | `""` (auto-detect) | Path to `cloudflared.exe` (searches PATH if blank) |
+| `-auto-start-tunnel` | `AUTO_START_TUNNEL` | `false` | Automatically launch Cloudflare tunnel on server startup |
 
 ---
 

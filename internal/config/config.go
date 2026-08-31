@@ -8,14 +8,17 @@ import (
 	"strconv"
 )
 
-// Config holds all server and security settings
+// Config holds all server, process, and tunnel security settings
 type Config struct {
-	RootDir       string
-	SecretKey     string
-	Port          string
-	VidoveoPath   string
-	VidoveoPort   int
-	SessionSecret []byte
+	RootDir         string
+	SecretKey       string
+	Port            string
+	VidoveoPath     string
+	VidoveoPort     int
+	TunnelName      string
+	CloudflaredPath string
+	AutoStartTunnel bool
+	SessionSecret   []byte
 }
 
 // LoadConfig parses flags and environment variables with sensible defaults
@@ -47,11 +50,26 @@ func LoadConfig() *Config {
 		}
 	}
 
+	defaultTunnelName := "vidoveo"
+	if envTunnel := os.Getenv("VIDO_TUNNEL_NAME"); envTunnel != "" {
+		defaultTunnelName = envTunnel
+	}
+
+	defaultCloudflaredPath := os.Getenv("CLOUDFLARED_PATH")
+
+	defaultAutoStart := false
+	if envAuto := os.Getenv("AUTO_START_TUNNEL"); envAuto == "true" || envAuto == "1" {
+		defaultAutoStart = true
+	}
+
 	rootDir := flag.String("root", defaultRoot, "Root directory path to browse and manage")
 	secretKey := flag.String("key", defaultKey, "Secret key for authentication")
 	port := flag.String("port", defaultPort, "HTTP server listening port")
 	vidoveoPath := flag.String("vidoveo-path", defaultVidoveoPath, "Path to Vidoveo.exe executable")
 	vidoveoPort := flag.Int("vidoveo-port", defaultVidoveoPort, "Port monitored for Vidoveo (e.g. 7788)")
+	tunnelName := flag.String("tunnel-name", defaultTunnelName, "Cloudflare tunnel name to run/manage (default: vidoveo)")
+	cloudflaredPath := flag.String("cloudflared-path", defaultCloudflaredPath, "Path to cloudflared executable (optional, searches PATH by default)")
+	autoStartTunnel := flag.Bool("auto-start-tunnel", defaultAutoStart, "Automatically start Cloudflare tunnel on startup")
 
 	flag.Parse()
 
@@ -65,11 +83,14 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		RootDir:       cleanRoot,
-		SecretKey:     *secretKey,
-		Port:          *port,
-		VidoveoPath:   *vidoveoPath,
-		VidoveoPort:   *vidoveoPort,
-		SessionSecret: sessionSecret,
+		RootDir:         cleanRoot,
+		SecretKey:       *secretKey,
+		Port:            *port,
+		VidoveoPath:     *vidoveoPath,
+		VidoveoPort:     *vidoveoPort,
+		TunnelName:      *tunnelName,
+		CloudflaredPath: *cloudflaredPath,
+		AutoStartTunnel: *autoStartTunnel,
+		SessionSecret:   sessionSecret,
 	}
 }

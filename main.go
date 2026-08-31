@@ -29,8 +29,25 @@ func main() {
 	authMgr := auth.NewManager(cfg.SecretKey, cfg.SessionSecret)
 	rateLimiter := auth.NewRateLimiter(5, 5*time.Minute)
 	procMgr := process.NewManager(cfg.VidoveoPath, cfg.VidoveoPort)
+	tunnelMgr := process.NewTunnelManager(cfg.TunnelName, cfg.CloudflaredPath)
 
-	srv, err := handlers.NewServer(cfg, authMgr, rateLimiter, procMgr)
+	// Auto-start tunnel if configured (matching start-tunnel.ps1 behavior)
+	if cfg.AutoStartTunnel {
+		go func() {
+			time.Sleep(1 * time.Second)
+			status := tunnelMgr.GetStatus()
+			if status.Installed && !status.Running {
+				log.Printf("[TUNNEL] Auto-starting Cloudflare tunnel '%s'...", cfg.TunnelName)
+				if err := tunnelMgr.Start(); err != nil {
+					log.Printf("[TUNNEL] Auto-start failed: %v", err)
+				} else {
+					log.Printf("[TUNNEL] Cloudflare tunnel '%s' auto-started successfully.", cfg.TunnelName)
+				}
+			}
+		}()
+	}
+
+	srv, err := handlers.NewServer(cfg, authMgr, rateLimiter, procMgr, tunnelMgr)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}
@@ -58,6 +75,8 @@ func main() {
 	mux.HandleFunc("/control/status", handlers.RequireAuth(authMgr, srv.HandleControlStatus))
 	mux.HandleFunc("/control/start", handlers.RequireAuth(authMgr, srv.HandleControlStart))
 	mux.HandleFunc("/control/stop", handlers.RequireAuth(authMgr, srv.HandleControlStop))
+	mux.HandleFunc("/control/tunnel/start", handlers.RequireAuth(authMgr, srv.HandleControlTunnelStart))
+	mux.HandleFunc("/control/tunnel/stop", handlers.RequireAuth(authMgr, srv.HandleControlTunnelStop))
 
 	// Apply middleware stack
 	handler := handlers.SecurityHeadersMiddleware(handlers.LoggingMiddleware(mux))
@@ -74,11 +93,12 @@ func main() {
 	fmt.Println("==========================================================")
 	fmt.Println("           VIDO TUNNEL - SECURE WEB APPLICATION           ")
 	fmt.Println("==========================================================")
-	fmt.Printf(" Server URL      : http://localhost:%s\n", cfg.Port)
-	fmt.Printf(" Scoped Root     : %s\n", cfg.RootDir)
-	fmt.Printf(" Monitored Exe   : %s\n", cfg.VidoveoPath)
-	fmt.Printf(" Monitored Port  : %d\n", cfg.VidoveoPort)
-	fmt.Printf(" Auth Secret Key : %s\n", cfg.SecretKey)
+	fmt.Printf(" Server URL       : http://localhost:%s\n", cfg.Port)
+	fmt.Printf(" Scoped Root      : %s\n", cfg.RootDir)
+	fmt.Printf(" Monitored Exe    : %s\n", cfg.VidoveoPath)
+	fmt.Printf(" Monitored Port   : %d\n", cfg.VidoveoPort)
+	fmt.Printf(" Cloudflare Tunnel: %s\n", cfg.TunnelName)
+	fmt.Printf(" Auth Secret Key  : %s\n", cfg.SecretKey)
 	fmt.Println("==========================================================")
 	fmt.Println(" Ready for connections. Press Ctrl+C to shut down.")
 

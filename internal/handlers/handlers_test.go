@@ -39,8 +39,9 @@ func setupTestServer(t *testing.T) (*Server, *config.Config, *auth.Manager, stri
 	authMgr := auth.NewManager(cfg.SecretKey, cfg.SessionSecret)
 	rateLimiter := auth.NewRateLimiter(5, 5*time.Minute)
 	procMgr := process.NewManager(cfg.VidoveoPath, cfg.VidoveoPort)
+	tunnelMgr := process.NewTunnelManager(cfg.TunnelName, cfg.CloudflaredPath)
 
-	srv, err := NewServer(cfg, authMgr, rateLimiter, procMgr)
+	srv, err := NewServer(cfg, authMgr, rateLimiter, procMgr, tunnelMgr)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
